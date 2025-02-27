@@ -12,6 +12,10 @@
 
 import chalk from 'chalk';
 import readline from 'readline';
+import dotenv from 'dotenv'
+import validator from 'validator';
+dotenv.config()
+
 
 // https://nodejs.org/api/readline.html#readlinecreateinterfaceoptions
 const rl = readline.createInterface({
@@ -19,69 +23,107 @@ const rl = readline.createInterface({
     output: process.stdout,
 })
 
-let attempt = 0 // contatore dei tentativi
-let maxGameAttempt = 6; // abbiamo 6 tentativi per risolvere una parola
-let wordGameLength = 4; // la parola deve esser lunga al max 4
+// Chiama una parola di n lettere con n variabile
+const solutionAPI = async function (wordLength) {
 
-// Soluzione statica a fine didattico.
-const solution = 'CODE';
+    let solution;
+    const url = `https://random-words5.p.rapidapi.com/getRandom?wordLength=${wordLength}`;
+    const options = {
+        method: 'GET',
+
+        headers: {
+            'x-rapidapi-key': process.env.API_KEY,
+            'x-rapidapi-host': process.env.API_HOST
+        }
+    };
+
+    const response = await fetch(url, options);
+    solution = await response.text();
+    //console.log("Soluzione da API: " + solution);
+    return solution
+}
+
+const askQuestion = (question) => {
+    return new Promise((resolve) => {
+        rl.question(chalk.yellow(question), (answer) => {
+            resolve(answer.trim()); // Rimuove spazi bianchi extra
+        });
+    });
+};
+
+const countOccurrences = (word, letter) => {
+    return word.split("").filter(char => char === letter).length;
+}
+
+// Soluzione dinamica
+
+const maxGameAttempt = parseInt( await askQuestion("Inserisci numero massimo di tentativi: "));
+const wordGameLength = parseInt( await askQuestion("Lunghezza parola: "));
+
+// Se gli input non solo validi interrompe il gioco
+if (isNaN(maxGameAttempt)||isNaN(wordGameLength)){
+    console.log("Input non validi");
+    process.exit(1);
+}
+
+// Chiede la soluzione
+const solution = await solutionAPI(wordGameLength);
+
+let attempt = 0 // contatore dei tentativi
 
 // funzione di verifica
-const wordChecker = function (word, solution) {
-    let success = [];
+const wordChecker = function (word, current) {
     let result = [];
 
     // ATTENZIONE ALLE PAROLE maiuscole/minuscole.
-    let word = word.toUpperCase();
-    let solution = solution.toUpperCase();
+    word = word.toUpperCase();          // parola di tentativo
+    current = current.toUpperCase();    //parola di soluzione
 
     // controllo lettera per lettera in parola
     for (let index in word) {
-        if (solution.includes(word[index])) {
-            let solutionIndex = solution.indexOf(word[index]);
-            if (word[index] === solution[index]) {
-                result.push(chalk.green(word[index]));
-                success.push(true);
-                solution = solution.replace(word[index], "_");
-            } else if (solution[solutionIndex] !== word[solutionIndex]) {
-                result.push(chalk.yellow(word[index]));
-                success.push(false);
-                solution = solution.replace(word[index], "_");
+        if (current.includes(word[index])) {
+            let letter = word[index];
+            if (word[index] === current[index]) {
+                result.push(chalk.green(letter));   // VERDE: la lettera è contenuta nella parola nella posizione giusta
+                current = current.replace(letter, "_");
+            } else if (countOccurrences(word,letter) > countOccurrences(current,letter)) {
+                result.push(chalk.gray(letter));    // GRIGIO: la lettera è contenuta nella parola ma in numero minore
             } else {
-                result.push(chalk.gray(word[index]));
-                success.push(false);
+                result.push(chalk.yellow(letter));  // GIALLO: la lettera è contenuta nella parola ma NON nella posizione giusta
+                current = current.replace(letter, "_");
             };
         } else {
-            result.push(chalk.gray(word[index]));
-            success.push(false);
+            result.push(chalk.gray(letter));        // GRIGIO: la lettera non è contenuta nella parola
         }
-        // VERDE: la lettera è contenuta nella parola nella posizione giusta
-        // GIALLO: la lettera è contenuta nella parola ma NON nella posizione giusta
-        // GRIGIO: la lettera non è contenuta nella parola
+        
+        
+        
     }
 
-    // ritorno un risultato composto dalle lettere colorate e da un success booleano
-    // per fare uscire dal gioco se l'utente indovina la parola
+    // ritorno un risultato composto dalle lettere colorate
+    // sucess è un boolano per fare uscire dal gioco se l'utente indovina la parola
     return {
         'data': result,
-        'success': success.every(bool => bool == true)
+        'success': current.split("").every(char => char === "_")
     }
 }
 
+console.log(solution);  //per debug
+
 // funzione di Gioco
-const game = function (attempt, max) {
+const game = function (attempt, max, solution) {
     // https://nodejs.org/api/readline.html#rlquestionquery-options-callback
     rl.question(chalk.blue(`Inserisci una parola di ${wordGameLength} caratteri: `), function (answer) {
-
+        console.log(solution);
         // usiamo una safe word per uscire dal ciclo
         if (answer === 'exit') {
             return rl.close();
         }
-
+        
         // controlla di aver inserito esattamente wordGameLength caratteri altrimenti dai un errore
         if (answer.length !== wordGameLength) {
             console.log('\n', chalk.red(`Devi inserire ${wordGameLength} caratteri.`));
-            game(attempt, maxGameAttempt);
+            game(attempt, maxGameAttempt, solution);
         } else {
             console.log('\n', `Tentativo ${attempt + 1} di ${maxGameAttempt}`);
             ++attempt;
@@ -99,15 +141,11 @@ const game = function (attempt, max) {
                 return rl.close();
             }
             // Richiamo la funzione fino a esaurimento dei tentativi
-            game(attempt, maxGameAttempt);
+            game(attempt, maxGameAttempt, solution);
 
         }
     });
 }
 
-game(attempt, maxGameAttempt);
 
-
-
-
-
+game(attempt, maxGameAttempt, solution);
