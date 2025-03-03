@@ -39,10 +39,11 @@ const solutionAPI = async function (wordLength) {
 
     const response = await fetch(url, options);
     solution = await response.text();
-    //console.log("Soluzione da API: " + solution);
+    console.log("Soluzione da API: " + solution);
     return solution
 }
 
+// Domanda a terminale di colore giallo
 const askQuestion = (question) => {
     return new Promise((resolve) => {
         rl.question(chalk.yellow(question), (answer) => {
@@ -51,25 +52,10 @@ const askQuestion = (question) => {
     });
 };
 
+// Conta quante volte una lettera (letter) è contenuta in una parola (word)
 const countOccurrences = (word, letter) => {
     return word.split("").filter(char => char === letter).length;
 }
-
-// Soluzione dinamica
-
-const maxGameAttempt = parseInt( await askQuestion("Inserisci numero massimo di tentativi: "));
-const wordGameLength = parseInt( await askQuestion("Lunghezza parola: "));
-
-// Se gli input non solo validi interrompe il gioco
-if (isNaN(maxGameAttempt)||isNaN(wordGameLength)){
-    console.log("Input non validi");
-    process.exit(1);
-}
-
-// Chiede la soluzione
-const solution = await solutionAPI(wordGameLength);
-
-let attempt = 0 // contatore dei tentativi
 
 // funzione di verifica
 const wordChecker = function (word, current) {
@@ -81,8 +67,9 @@ const wordChecker = function (word, current) {
 
     // controllo lettera per lettera in parola
     for (let index in word) {
-        if (current.includes(word[index])) {
-            let letter = word[index];
+        let letter = word[index];
+
+        if (current.includes(letter)) {
             if (word[index] === current[index]) {
                 result.push(chalk.green(letter));   // VERDE: la lettera è contenuta nella parola nella posizione giusta
                 current = current.replace(letter, "_");
@@ -95,9 +82,6 @@ const wordChecker = function (word, current) {
         } else {
             result.push(chalk.gray(letter));        // GRIGIO: la lettera non è contenuta nella parola
         }
-        
-        
-        
     }
 
     // ritorno un risultato composto dalle lettere colorate
@@ -108,13 +92,11 @@ const wordChecker = function (word, current) {
     }
 }
 
-console.log(solution);  //per debug
-
 // funzione di Gioco
 const game = function (attempt, max, solution) {
     // https://nodejs.org/api/readline.html#rlquestionquery-options-callback
     rl.question(chalk.blue(`Inserisci una parola di ${wordGameLength} caratteri: `), function (answer) {
-        console.log(solution);
+        
         // usiamo una safe word per uscire dal ciclo
         if (answer === 'exit') {
             return rl.close();
@@ -147,5 +129,29 @@ const game = function (attempt, max, solution) {
     });
 }
 
+var maxGameAttempt = 0 ; //Inizializzazione dei parametri globali
+var wordGameLength = 0 ; 
 
-game(attempt, maxGameAttempt, solution);
+const startGame = async () => {
+
+    // Soluzione dinamica
+    maxGameAttempt = parseInt( await askQuestion("Inserisci numero massimo di tentativi: "));
+    wordGameLength = parseInt( await askQuestion("Lunghezza parola: "));
+
+    // Se gli input non solo validi interrompe il gioco
+    if (isNaN(maxGameAttempt)||isNaN(wordGameLength)){
+        console.log("Input non validi");
+        return;
+    }
+
+    // Chiede la soluzione
+    const solution = await solutionAPI(wordGameLength);
+    console.log(chalk.green(`La tua partita è pronta, BUONA FORTUNA!`));
+    
+    let attempt = 0 // Contatore dei tentativi
+
+    // Inizia il gioco
+    game(attempt, maxGameAttempt, solution);
+}
+
+startGame();
